@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: laravel-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: laravel
+  template:
+    metadata:
+      labels:
+        app: laravel
+    spec:
+      initContainers:
+        - name: init-sqlite-db
+          image: busybox
+          command: ['sh', '-c', 'mkdir -p /var/www/database && touch /var/www/database/database.sqlite']
+          volumeMounts:
+            - name: db-volume
+              mountPath: /var/www/database
+      containers:
+        - name: laravel
+          image: ghcr.io/escanor-source/laravel-app:latest
+          ports:
+            - containerPort: 8000
+          livenessProbe:
+            httpGet:
+              path: /favicon.ico
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /favicon.ico
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: env-volume
+              mountPath: /var/www/.env
+              subPath: .env
+            - name: db-volume
+              mountPath: /var/www/database
+      volumes:
+        - name: env-volume
+          configMap:
+            name: app-env
+        - name: db-volume
+          emptyDir: {}
+      imagePullSecrets:
+        - name: ghcr-secret
+

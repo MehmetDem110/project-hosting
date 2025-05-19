@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-env
+data:
+  .env: |
+    APP_NAME=Laravel
+    APP_ENV=production
+    APP_KEY=base64:8w3COo+BLtqZ+NO9Fx3BnuQkNEHiFc2jWaTwEubaSk8=
+    APP_DEBUG=false
+    APP_URL=https://escanor.localhost
+    LOG_CHANNEL=stderr
+    DB_CONNECTION=sqlite
+    DB_DATABASE=/var/www/database/database.sqlite
+

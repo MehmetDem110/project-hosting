@@ -1,0 +1,149 @@
+# Namespace
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: laravel-app
+
+---
+# MySQL Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+  namespace: laravel-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# MySQL Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+  namespace: laravel-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.0
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          value: "rootpassword"
+        - name: MYSQL_DATABASE
+          value: "laravel"
+        - name: MYSQL_USER
+          value: "laravel"
+        - name: MYSQL_PASSWORD
+          value: "laravelpass"
+        ports:
+        - containerPort: 3306
+        volumeMounts:
+        - name: mysql-data
+          mountPath: /var/lib/mysql
+      volumes:
+      - name: mysql-data
+        persistentVolumeClaim:
+          claimName: mysql-pvc
+
+---
+# Laravel App ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: laravel-config
+  namespace: laravel-app
+data:
+  APP_ENV: "production"
+  APP_DEBUG: "false"
+  DB_CONNECTION: "mysql"
+  DB_HOST: "mysql"
+  DB_PORT: "3306"
+  DB_DATABASE: "laravel"
+  DB_USERNAME: "laravel"
+  DB_PASSWORD: "laravelpass"
+
+---
+# Laravel Application Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: laravel-app
+  namespace: laravel-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: laravel-app
+  template:
+    metadata:
+      labels:
+        app: laravel-app
+    spec:
+      containers:
+      - name: laravel
+        image: mehmetdem110/laravel-app:latest
+        envFrom:
+        - configMapRef:
+            name: laravel-config
+        ports:
+        - containerPort: 8000
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+
+---
+# Laravel Service (ClusterIP -> exposed via Ingress)
+apiVersion: v1
+kind: Service
+metadata:
+  name: laravel-service
+  namespace: laravel-app
+spec:
+  selector:
+    app: laravel-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+
+---
+# Ingress (Traefik or Nginx compatible)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: laravel-ingress
+  namespace: laravel-app
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: web
+spec:
+  rules:
+  - http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: laravel-service
+            port:
+              number: 80
